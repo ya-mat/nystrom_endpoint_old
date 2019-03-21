@@ -1,0 +1,14 @@
+*.txt
+*.optrpt
+fort.*
+*.o
+*.mod
+a.out
+*.dat
+*~
+gmon.out
+perf.data
+perf.data.old
+*.tgz
+exec/*/*
+
