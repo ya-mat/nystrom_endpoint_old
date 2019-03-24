@@ -67,6 +67,10 @@ program main
   real(8) :: phi
   real(8) :: cyr(2)
   real(8) :: cyi(2)
+  real(8) :: ec
+  real(8),allocatable :: en(:)
+  integer :: e_ite2
+  real(8),allocatable :: facgam(:)
 
   result = dcmplx(0d0, 0d0)
 
@@ -218,7 +222,7 @@ program main
 !  close(1000)
 
   rad = 2d0
-  n = 200
+  n = 100
 
   allocate(x(2, n))
   allocate(xn(2, n))
@@ -351,7 +355,7 @@ program main
 !  close(1000)
 
   rad = 2d0
-  n = 1000
+  n = 100
   k_1 = 3d0
   phi = 1d0
 
@@ -497,6 +501,44 @@ program main
   deallocate(x)
   deallocate(xn)
   deallocate(wn)
+
+  ! singularity check
+
+  r = 0.000001d0
+  ec = 2d0*sqrt(pi)
+  k_1 = 1d0
+  e_ite2 = 2
+  allocate(en(0:e_ite2))
+  allocate(facgam(0:e_ite2))
+
+  write(*,*) ''
+  do j = 1, 10
+     k_1 = 1d0*j
+     write(*,*) 'now k_1', k_1
+     write(*,*) 'laplace', -arctwopi*log(r)
+
+     call zbesh(k_1*r, 0d0, 0d0, 1, 1, 1, CYR, CYI, NZ, IERR)
+     if(ierr.ne.0) then
+        write(*,*) 'nz, ierr', nz, ierr
+        write(*,*) 'cyr', cyr
+        write(*,*) 'cyi', cyi
+        stop 'zbesh error, in predirect_helmholtz'
+     end if
+     besh(1) = dcmplx(cyr(1), cyi(1))
+     write(*,*) 'helmholtz', (iunit*0.25d0)*besh(1)
+
+     !call DEXINT (X, N, KODE, M, TOL, EN, NZ, IERR)
+     call DEXINT(0.25d0*r**2*ec**2, 1, 1, e_ite2+1, 1d-12, en, NZ, IERR)
+     if(ierr .ne. 0) then
+        write(*,*) 'nz, ierr', nz, ierr
+        stop '# force raise !!, dexint error'
+     end if
+     do i = 0, e_ite2
+        facgam(i) = k_1**(2*i)/(gamma(dble(i+1))*ec**(2*i))
+     end do
+     write(*,*) 'ewald', 0.50d0*arctwopi*sum(facgam*en)
+     write(*,*) ''
+  end do
 
 end program main
 
