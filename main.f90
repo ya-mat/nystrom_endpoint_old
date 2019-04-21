@@ -21,7 +21,6 @@ program main
 
   real(8) :: xm(2)
   real(8) :: th
-  real(8) :: dth
   real(8) :: nth
   real(8) :: hy
   integer :: i
@@ -60,7 +59,7 @@ program main
   real(8) :: wg(col_num)
   real(8),allocatable :: wn(:)
   real(8),allocatable :: w1(:)
-  real(8),allocatable :: w2(:)
+  real(8),allocatable :: ws(:)
   integer :: tmpi
 
   real(8) :: tmp
@@ -73,10 +72,8 @@ program main
   real(8),allocatable :: en(:)
   integer :: e_ite2
   real(8),allocatable :: facgam(:)
-  integer :: smooth_star
   real(8) :: rad1
   real(8) :: rad2
-  integer :: daen_flag
   integer :: boundary_flag
 
   result = dcmplx(0d0, 0d0)
@@ -368,12 +365,10 @@ program main
 
   rad1 = 2d0
   rad2 = 3d0
-  n = 2000
+  n = 200
   k_1 = 3d0
   phi = 1d0
-  boundary_flag = 0 !0==circle, 1==daen, 2==smooth_star
-!  daen_flag = 1
-!  smooth_star = 0
+  boundary_flag = 2 !0==circle, 1==daen, 2==smooth_star
 
   allocate(x(2, n))
   allocate(xn(2, n))
@@ -383,9 +378,9 @@ program main
   allocate(kai(n))
   allocate(ipiv(n))
   allocate(w1(n))
+  allocate(ws(n))
   allocate(wn(-col_num/2:col_num/2))
 
-!  select case(smooth_star)
   select case(boundary_flag)
   case(0)
      ! circle
@@ -398,15 +393,14 @@ program main
         xn(1,i) = rad1*cos(th)
         xn(2,i) = rad1*sin(th)
 
-        w1(i) = sqrt(xn(1,i)**2 + xn(2,i)**2)
+        ws(i) = sqrt(xn(1,i)**2 + xn(2,i)**2)
 
-        xn(:,i) = xn(:,i)/w1(i)
+        xn(:,i) = xn(:,i)/ws(i)
 
-        w1(i) = w1(i)*2d0*pi/dble(n)
+        w1(i) = 2d0*pi/dble(n)
      enddo
   case(1)
      ! daen circle
-     dth = 2d0*pi/dble(n)
      do i = 1, n
         th = 2d0*pi*(dble(i)+0.5d0)/dble(n)
 
@@ -416,7 +410,9 @@ program main
         xn(1,i) = rad2*cos(th)
         xn(2,i) = rad1*sin(th)
 
-        xn(:,i) = xn(:,i)/sqrt(xn(1,i)**2 + xn(2,i)**2)
+        ws(i) = sqrt(xn(1,i)**2 + xn(2,i)**2)
+
+        xn(:,i) = xn(:,i)/ws(i)
 
         w1(i) = 2d0*pi/dble(n)
      enddo
@@ -431,7 +427,9 @@ program main
         xn(1,i) = (cos(th) + 0.3d0*(-5d0*sin(5d0*th)*sin(th) + cos(5d0*th)*cos(th)))/2.6d0 ! dy/dth
         xn(2,i) = -(-sin(th) + 0.3d0*(-5d0*sin(5d0*th)*cos(th) - cos(5d0*th)*sin(th)))/2.6d0 ! -dx/dth
 
-        xn(:,i) = xn(:,i)/sqrt(xn(1,i)**2 + xn(2,i)**2)
+        ws(i) = sqrt(xn(1,i)**2 + xn(2,i)**2)
+
+        xn(:,i) = xn(:,i)/ws(i)
 
         w1(i) = 2d0*pi/dble(n)
      end do
@@ -519,26 +517,14 @@ program main
            end if
 
            besh = dcmplx(cyr, cyi)
-           select case(boundary_flag)
-           case(0)
-              besh = (iunit*0.25d0)*besh
-           case(1)
-              nth = 2d0*pi*(dble(j)+0.5d0)/dble(n)
-              besh = (iunit*0.25d0)*besh*sqrt((rad2*cos(nth))**2 + (rad1*sin(nth))**2)
-           case(2)
-              nth = 2d0*pi*(dble(j)+0.5d0)/dble(n)
-              besh = (iunit*0.25d0)*besh*sqrt(((-sin(nth) + 0.3d0*(-5d0*sin(5d0*nth)*cos(nth) - cos(5d0*nth)*sin(nth)))/2.6d0)**2 + ((cos(nth) + 0.3d0*(-5d0*sin(5d0*nth)*sin(nth) + cos(5d0*nth)*cos(nth)))/2.6d0)**2)
-              !        xn(1,i) = (cos(th) + 0.3d0*(-5d0*sin(5d0*th)*sin(th) + cos(5d0*th)*cos(th)))/2.6d0 ! dy/dth
-              !        xn(2,i) = (-sin(th) + 0.3d0*(-5d0*sin(5d0*th)*cos(th) - cos(5d0*th)*sin(th)))/2.6d0 ! dx/dth
-
-           end select
+           besh = (iunit*0.25d0)*besh
 
            if(abs(j - tmpi) .le. col_num/2) then
-              lp1(i, j) = -wn(j-tmpi)*besh(1)
-              lp2(i, j) = -wn(j-tmpi)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
+              lp1(i, j) = -wn(j-tmpi)*ws(j)*besh(1)
+              lp2(i, j) = -wn(j-tmpi)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
            else
-              lp1(i, j) = -w1(j)*besh(1)
-              lp2(i, j) = -w1(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
+              lp1(i, j) = -w1(j)*ws(j)*besh(1)
+              lp2(i, j) = -w1(j)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
            end if
         endif
      end do
@@ -564,6 +550,8 @@ program main
   deallocate(x)
   deallocate(xn)
   deallocate(wn)
+  deallocate(w1)
+  deallocate(ws)
 
   ! singularity check--------------------------------
 
