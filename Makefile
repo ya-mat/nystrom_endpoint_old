@@ -1,6 +1,7 @@
 LINKER	     = gfortran
 FORTRAN	     = gfortran
-LDFLAGS	     = -L//home/fafa/lib/lapack_etc_make/ -lblas -llapack -lslatec
+#LDFLAGS	     = -L/home/fafa/lib/lapack_etc_make/ -lblas -llapack -lslatec
+LDFLAGS	     = -L/Users/fafa/matsumoto/lib/lapack_etc_make -lblas -llapack -lslatec
 #FOPTS	     = -cpp -O3 -ffree-line-length-none -fmax-errors=3
 FOPTS	     = -g -O0 -fbounds-check -fmax-errors=3 -cpp -ffree-line-length-none -Wall
 

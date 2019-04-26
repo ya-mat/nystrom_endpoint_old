@@ -365,10 +365,10 @@ program main
 
   rad1 = 2d0
   rad2 = 3d0
-  n = 200
+  n = 1000
   k_1 = 3d0
   phi = 1d0
-  boundary_flag = 2 !0==circle, 1==daen, 2==smooth_star
+  boundary_flag = 0 !0==circle, 1==daen, 2==smooth_star
 
   allocate(x(2, n))
   allocate(xn(2, n))
@@ -521,7 +521,8 @@ program main
 
            if(abs(j - tmpi) .le. col_num/2) then
               lp1(i, j) = -wn(j-tmpi)*ws(j)*besh(1)
-              lp2(i, j) = -wn(j-tmpi)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
+              lp2(i, j) = -wn(j-tmpi)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r) ! exact version
+!              lp2(i, j) = -w1(j)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
            else
               lp1(i, j) = -w1(j)*ws(j)*besh(1)
               lp2(i, j) = -w1(j)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
