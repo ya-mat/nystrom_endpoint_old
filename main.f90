@@ -17,7 +17,6 @@ program main
   real(8),parameter :: pi = 3.1415926535897932384626433832795028841971d0
   real(8),parameter :: arctwopi = 0.159154943091895d0
   complex*16,parameter :: iunit = dcmplx(0d0, 1d0)
-  integer :: exterior
 
   real(8) :: xm(2)
   real(8) :: th
@@ -75,6 +74,7 @@ program main
   real(8) :: rad1
   real(8) :: rad2
   integer :: boundary_flag
+  integer :: slp_or_dlp
 
   result = dcmplx(0d0, 0d0)
 
@@ -306,8 +306,6 @@ program main
      kai(i) = (3*x(1, i)**2*x(2, i) - x(2, i)**3)*xn(1, i) + (x(1, i)**3 - 3*x(1, i)*x(2, i)**2)*xn(2, i)
   end do
 
-  exterior = 0
-
   do j = 1, n
      do i = 1, n
         r= sqrt(dot_product(x(:,i)-x(:,j),x(:,i)-x(:,j)))
@@ -365,7 +363,7 @@ program main
 
   rad1 = 2d0
   rad2 = 3d0
-  n = 1000
+  n = 200
   k_1 = 3d0
   phi = 1d0
   boundary_flag = 0 !0==circle, 1==daen, 2==smooth_star
@@ -487,7 +485,8 @@ program main
 !     kai(i) = (3*x(1, i)**2*x(2, i) - x(2, i)**3)*xn(1, i) + (x(1, i)**3 - 3*x(1, i)*x(2, i)**2)*xn(2, i)
   end do
 
-  exterior = 1
+  lp1 = dcmplx(0d0, 0d0) !d_slp
+  lp2 = dcmplx(0d0, 0d0) !d_dlp
 
   do j = 1, n
      do i = 1, n
@@ -504,8 +503,8 @@ program main
 
         if(r.le.1d-10) then
            lp1(i, j) = 0d0
-!           lp2(i, j) = 0.5d0
-           lp2(i, j) = -0.5d0
+           lp2(i, j) = 0.5d0
+!           lp2(i, j) = -0.5d0
         else
            !  call zbesh(zr,zi,fnu,kode,m,n,cyr,cyi,NZ,ierr)
            call zbesh(k_1*r, 0d0, 0d0, 1, 1, 2, CYR, CYI, NZ, IERR)
@@ -520,12 +519,12 @@ program main
            besh = (iunit*0.25d0)*besh
 
            if(abs(j - tmpi) .le. col_num/2) then
-              lp1(i, j) = -wn(j-tmpi)*ws(j)*besh(1)
-              lp2(i, j) = -wn(j-tmpi)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r) ! exact version
-!              lp2(i, j) = -w1(j)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
+              lp1(i, j) = wn(j-tmpi)*ws(j)*besh(1)
+              lp2(i, j) = wn(j-tmpi)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r) ! exact version
+!              lp2(i, j) = w1(j)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
            else
-              lp1(i, j) = -w1(j)*ws(j)*besh(1)
-              lp2(i, j) = -w1(j)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
+              lp1(i, j) = w1(j)*ws(j)*besh(1)
+              lp2(i, j) = w1(j)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
            end if
         endif
      end do
@@ -553,6 +552,167 @@ program main
   deallocate(wn)
   deallocate(w1)
   deallocate(ws)
+
+! diff circle Helmholtz ------------------------------------------------
+
+!  write(6,*) '# n, rad'
+!  open(1000, file='input', status='old')
+!  read(1000,*) n, rad
+!  close(1000)
+
+  rad = 2d0
+  n = 200
+  k_1 = 3d0
+  phi = 1d0
+
+  allocate(x(2, n))
+  allocate(xn(2, n))
+  allocate(lp1(n, n))
+  allocate(lp2(n, n))
+  allocate(u(n))
+  allocate(kai(n))
+  allocate(ipiv(n))
+  allocate(w1(n))
+  allocate(ws(n))
+  allocate(wn(-col_num/2:col_num/2))
+
+  ! circle
+  do i = 1, n
+     th = 2d0*pi*(dble(i)+0.5d0)/dble(n)
+
+     x(1,i) = rad1*cos(th)
+     x(2,i) = rad1*sin(th)
+
+     xn(1,i) = rad1*cos(th)
+     xn(2,i) = rad1*sin(th)
+
+     ws(i) = sqrt(xn(1,i)**2 + xn(2,i)**2)
+
+     xn(:,i) = xn(:,i)/ws(i)
+
+     w1(i) = 2d0*pi/dble(n)
+  enddo
+
+  wn(:) = w1(1)
+  wn(0) = 0d0
+  if(col_num .eq. 12) then
+     wn(1) = wn(1)*(1d0 + 0.2051970990601252d1 + 0.2915391987686506d1)
+     wn(2) = wn(2)*(1d0 - 0.7407035584542865d1 - 0.8797979464048396d1)
+     wn(3) = wn(3)*(1d0 + 0.1219590847580216d2 + 0.1365562914252423d2)
+     wn(4) = wn(4)*(1d0 - 0.1064623987147282d2 - 0.1157975479644601d2)
+     wn(5) = wn(5)*(1d0 + 0.4799117710681772d1 + 0.5130987287355766d1)
+     wn(6) = wn(6)*(1d0 - 0.8837770983721025d0 - 0.9342187797694916d0)
+     wn(-1) = wn(1)
+     wn(-2) = wn(2)
+     wn(-3) = wn(3)
+     wn(-4) = wn(4)
+     wn(-5) = wn(5)
+     wn(-6) = wn(6)
+  else if(col_num .eq. 20) then
+     wn(1) = wn(1)*(1d0 + 0.3256353919777872d1 + 0.4576078100790908d1)
+     wn(2) = wn(2)*(1d0 - 0.2096116396850468d2 - 0.2469045273524281d2)
+     wn(3) = wn(3)*(1d0 + 0.6872858265408605d2 + 0.7648830198138171d2)
+     wn(4) = wn(4)*(1d0 - 0.1393153744796911d3 - 0.1508194558089468d3)
+     wn(5) = wn(5)*(1d0 + 0.1874446431742073d3 + 0.1996415730837827d3)
+     wn(6) = wn(6)*(1d0 - 0.1715855846429547d3 - 0.1807965537141134d3)
+     wn(7) = wn(7)*(1d0 + 0.1061953812152787d3 + 0.1110467735366555d3)
+     wn(8) = wn(8)*(1d0 - 0.4269031893958787d2 - 0.4438764193424203d2)
+     wn(9) = wn(9)*(1d0 + 0.1009036069527147d2 + 0.1044548196545488d2)
+     wn(10) = wn(10)*(1d0 - 0.1066655310499552d1 - 0.1100328792904271d1)
+     wn(-1) = wn(1)
+     wn(-2) = wn(2)
+     wn(-3) = wn(3)
+     wn(-4) = wn(4)
+     wn(-5) = wn(5)
+     wn(-6) = wn(6)
+     wn(-7) = wn(7)
+     wn(-8) = wn(8)
+     wn(-9) = wn(9)
+     wn(-10) = wn(10)
+  end if
+
+!  tmp = k_1*sin(phi)
+!  tmp2 = k_1*cos(phi)
+
+!  fnu = 1d0
+!  kode = 1
+!  call ZBESJ(k_1*rad, 0d0, FNU, KODE, 1, CYR(1), CYI(1), NZ, IERR)
+  call ZBESJ(k_1*rad, 0d0, 1d0, 1, 1, CYR(1), CYI(1), NZ, IERR)
+
+  slp_or_dlp = 2
+  do i = 1, n
+!     u(i) = exp(iunit*(tmp*x(1, i)+tmp2*x(2, i)))
+     u(i) = -dcmplx(cyr(1), cyi(1))*exp(iunit*1d0*atan2(x(2, i), x(1, i)))
+  end do
+  kai = make_sol_mie_series_nystrom(k_1, x, rad, slp_or_dlp)
+
+  lp1 = dcmplx(0d0, 0d0) !d_slp
+  lp2 = dcmplx(0d0, 0d0) !d_dlp
+
+  do j = 1, n
+     do i = 1, n
+        r= sqrt(dot_product(x(:,i)-x(:,j),x(:,i)-x(:,j)))
+        if(abs(j-i) .gt. n/2) then
+           if(j > i) then
+              tmpi = i + n
+           elseif(i > j) then
+              tmpi = i - n
+           end if
+        else
+           tmpi = i
+        end if
+
+        if(r.le.1d-10) then
+!           lp1(i, j) = 0.5d0 ! d_slp
+           lp2(i, j) = -0.5d0 ! dlp
+        else
+           !  call zbesh(zr,zi,fnu,kode,m,n,cyr,cyi,NZ,ierr)
+           call zbesh(k_1*r, 0d0, 0d0, 1, 1, 2, CYR, CYI, NZ, IERR)
+           if(ierr.ne.0) then
+              write(*,*) 'nz, ierr', nz, ierr
+              write(*,*) 'cyr', cyr
+              write(*,*) 'cyi', cyi
+              stop 'zbesh error, in predirect_helmholtz'
+           end if
+
+           besh = dcmplx(cyr, cyi)
+           besh = (iunit*0.25d0)*besh
+
+           if(abs(j - tmpi) .le. col_num/2) then
+!              lp1(i, j) = wn(j-tmpi)*ws(j)*besh(1)
+!              lp2(i, j) = wn(j-tmpi)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r) ! exact version
+              lp2(i, j) = w1(j)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
+           else
+!              lp1(i, j) = w1(j)*ws(j)*besh(1)
+              lp2(i, j) = w1(j)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
+           end if
+        endif
+     end do
+  end do
+
+!  u = matmul(lp2, u)
+
+  call ZGESV(N, 1, lp2, n, ipiv, u, n, info)
+  if(info.ne.0) then
+     write(6,*) 'dgesv, info=', info
+     call force_raise()
+  endif
+
+  write(*,*) 'Helmholtz number of dof', n
+  write(*,*) 'Helmholtz rad', rad
+  write(*,*) 'Helmholtz relative error', sqrt(dot_product(u - kai, u - kai)/dot_product(kai, kai))
+
+  deallocate(lp1)
+  deallocate(lp2)
+  deallocate(ipiv)
+  deallocate(u)
+  deallocate(kai)
+  deallocate(x)
+  deallocate(xn)
+  deallocate(wn)
+  deallocate(w1)
+  deallocate(ws)
+
 
   ! singularity check--------------------------------
 

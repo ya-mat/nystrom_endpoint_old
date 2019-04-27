@@ -409,6 +409,57 @@ contains
 
   end subroutine givedata_p0_and_w
   !--------------------------------------------
+  function make_sol_mie_series_nystrom(k_1, x, rad, slp_or_dlp) result(res)
+    implicit none
+    !order of hankel and bessel function is equal to one
+
+    real(8),intent(in) :: k_1
+    real(8),intent(in) :: x(:,:)
+    real(8),intent(in) :: rad
+    integer,intent(in) :: slp_or_dlp
+
+    complex*16,allocatable :: res(:)
+    integer :: len
+    real(8) :: xm(2)
+    integer,parameter :: n = 3
+    real(8) :: cyr(n), cyi(n), zr, zi
+    real(8) :: fnu
+    integer :: kode, nz, ierr, m
+    integer :: i
+    integer :: ii
+    complex*16 :: hankel(3)
+    complex*16 :: bessel(3)
+    complex*16 :: am
+    complex*16,parameter :: iunit = dcmplx(0d0, 1d0)
+
+    len = size(x(1,:))
+
+    allocate(res(len))
+    res = dcmplx(0d0, 0d0)
+
+    zr = k_1*rad
+    zi = 0d0 ! k_1 is real
+    fnu = 0
+    kode = 1
+    call ZBESJ(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
+    bessel(:) = dcmplx(cyr(:), cyi(:))
+    m = 1
+    call ZBESH(ZR, ZI, FNU, KODE, M, N, CYR, CYI, NZ, IERR)
+    hankel(:) = dcmplx(cyr(:), cyi(:))
+
+    do i = 1, len
+       if(slp_or_dlp .eq. 1 .or. slp_or_dlp .eq. 3) then
+          res(i) = -bessel(2)/hankel(2)*0.5d0*k_1*(hankel(1) - hankel(3))*exp(iunit*1d0*atan2(x(2, i), x(1, i)))&
+               & + 0.5d0*k_1*(bessel(1) - bessel(3))*exp(iunit*1d0*atan2(x(2, i), x(1, i)))
+       else if(slp_or_dlp .eq. 2 .or. slp_or_dlp .eq. 4) then
+          am = -(bessel(1) - bessel(3))/(hankel(1) - hankel(3))
+          res(i) = (am*hankel(2) + bessel(2))*exp(iunit*1d0*atan2(x(2, i), x(1, i)))
+       end if
+    end do
+
+  end function make_sol_mie_series_nystrom
+  !---------------------------------------
+!
 !  function dlp_helmholtz_2d_nystrom(x, iic, jic, w, xn, k, exterior, ker_or_dlp) result(result)
 !    use my_slatec_func
 !    implicit none
