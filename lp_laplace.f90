@@ -413,7 +413,7 @@ contains
     implicit none
     !order of hankel and bessel function is equal to one
 
-    real(8),intent(in) :: k_1
+    complex*16,intent(in) :: k_1
     real(8),intent(in) :: x(:,:)
     real(8),intent(in) :: rad
     integer,intent(in) :: slp_or_dlp
@@ -437,8 +437,8 @@ contains
     allocate(res(len))
     res = dcmplx(0d0, 0d0)
 
-    zr = k_1*rad
-    zi = 0d0 ! k_1 is real
+    zr = dble(k_1*rad)
+    zi = dimag(k_1*rad) ! k_1 is real
     fnu = 0
     kode = 1
     call ZBESJ(ZR, ZI, FNU, KODE, N, CYR, CYI, NZ, IERR)
@@ -459,97 +459,275 @@ contains
 
   end function make_sol_mie_series_nystrom
   !---------------------------------------
-!
-!  function dlp_helmholtz_2d_nystrom(x, iic, jic, w, xn, k, exterior, ker_or_dlp) result(result)
+  function d_diff_kernel_hel(xx, yy, xn, yn, k_1) result(res)
+    implicit none
+
+    real(8),intent(in) :: xx(2)
+    real(8),intent(in) :: yy(2)
+    real(8),intent(in) :: xn(2)
+    real(8),intent(in) :: yn(2)
+    complex*16,intent(in) :: k_1
+
+    complex*16 :: res
+    real(8) :: r
+    real(8) :: cyr(3)
+    real(8) :: cyi(3)
+    integer :: ierr
+    integer :: nz
+    complex*16 :: besh(3)
+    complex*16,parameter :: iunit = dcmplx(0d0, 1d0)
+
+    r = sqrt(dot_product(xx - yy, xx - yy))
+    call zbesh(dble(k_1*r), 0d0, 0d0, 1, 1, 3, CYR, CYI, NZ, IERR)
+    if(ierr.ne.0) then
+       write(*,*) 'nz, ierr', nz, ierr
+       write(*,*) 'cyr', cyr
+       write(*,*) 'cyi', cyi
+       stop 'zbesh error'
+    end if
+
+    besh = dcmplx(cyr, cyi)
+    besh = (iunit*0.25d0)*besh
+
+!    block
+!      integer :: i
+!      do i = 1, 3
+!         write(*,*) 'i, besh', i, besh(i)
+!      end do
+!    end block
+
+    res = k_1*besh(2)*dot_product(xn, yn)/r + (dot_product(xx-yy,yn)/r)*(dot_product(xx-yy,xn)/r)*(-1d0/r*k_1*besh(2) + 0.5d0*k_1**2*(besh(1) - besh(3)))
+
+  end function d_diff_kernel_hel
+  !----------------------------------------
+  function lp_hel(xm, ym, y1, y2, hy, nx, ny, k, slp_or_dlp, msw_flag, exterior) result(result)
 !    use my_slatec_func
-!    implicit none
-! 
-!    real(8),intent(in) :: x(:, :)
-!    integer,intent(in) :: iic(:)
-!    integer,intent(in) :: jic(:)
-!    real(8),intent(in) :: w(:)
-!    real(8),intent(in) :: xn(:,:)
-!    complex*16,intent(in) :: k
-!    integer,intent(in) :: exterior
-!    integer,intent(in) :: ker_or_dlp
-! 
-!    complex*16 :: result(size(iic), size(jic))
-!    integer :: i
-!    integer :: j
-!    integer :: ii
-!    integer :: jj
-!    real(8) :: r
-!    real(8) :: RR(2)
-!    real(8) :: dnrm2
-!    real(8) :: eps = 1d-10
-!    complex*16 :: besh
-!    real(8) :: zr
-!    real(8) :: zi
-!    real(8) :: cyr
-!    real(8) :: cyi
-!    integer :: ierr, NZ
-! 
-!!    result(:,:) = dcmplx(0d0, 0d0)
-! 
-!    do j = 1, size(jic)
-!       jj = jic(j)
-!       do i = 1, size(iic)
-!          ii = iic(i)
-! 
-!          RR = x(:, ii) - x(:, jj)
-!          r = dnrm2(2, RR, 1)
-!          if(r.le.eps) then
-!             if(exterior == 0) result(i, j) = dcmplx(0.5d0, 0d0)
-!             if(exterior == 1) result(i, j) = dcmplx(-0.5d0, 0d0)
-!          else
-!             zr = dble(k*r)
-!             zi = dimag(k*r)
-!             if(ker_or_dlp == 1) then
-!                call MY_ZBESH(zr,zi,0d0,1,1,1,cyr,cyi,NZ,ierr)
-!             else if(ker_or_dlp == 2) then
-!                call MY_ZBESH(zr,zi,1d0,1,1,1,cyr,cyi,NZ,ierr)
-!             end if
-! 
-!             besh = dcmplx(cyr,cyi)
-! 
-!             if(ker_or_dlp == 1) then
-!                result(i,j) = (iunit*0.25d0)*besh
-!             else if(ker_or_dlp == 2) then
-!                result(i,j) = w(jj)*(iunit*0.25d0)*k*besh*(dot_product(RR, xn(:, jj))/r)
-!             end if
-!          end if
-!       end do
-!    end do
-! 
-!    if(ierr.ne.0) call force_raise()
-! 
-!  end function dlp_helmholtz_2d_nystrom
-!---------------------------------------------
-!  function dlp_laplace_2d_nystrom(a,x,y,jc,w,lda,m,n) result(res)
-!    implicit none
-! 
-!    real(8) :: x(2,*)
-!    real(8) :: y(2,*)
-!    real(8) :: r,eps=1d-10,w(*),pi
-!    integer :: m, n, i, j,lda,jc(*),jj
-! 
-!    complex*16,intent(in) :: res(:,:)
-! 
-!    pi = atan2(1d0,0d0)*2d0
-! 
-!    do jj=1,n
-!       j=jc(jj)
-!       do i=1,m
-!          r= sqrt(dot_product(x(:,i)-y(:,j),x(:,i)-y(:,j)))
-!          if(r.le.eps) then
-!             a(i,jj) = -0.5d0
-!          else
-!             a(i,jj)=dot_product(x(:,i)-y(:,j),xn(:,j))*w(j)*0.5d0/pi/r**2
-!          endif
-!       enddo
-!    enddo
-! 
-!    return
-!  end function dlp_laplace_2d_nystrom
-!---------------------------------------------
+!    use several_func
+    implicit none
+
+    real(8),intent(in) :: xm(2)
+    real(8),intent(in) :: ym(2)
+    real(8),intent(in) :: y1(2)
+    real(8),intent(in) :: y2(2)
+    real(8),intent(in) :: hy
+    real(8),intent(in) :: nx(2)
+    real(8),intent(in) :: ny(2)
+    complex*16,intent(in) :: k
+    integer,intent(in) :: slp_or_dlp
+    integer,intent(in) :: msw_flag
+    integer,intent(in) :: exterior
+
+    integer,parameter :: bunten = 4
+    real(8),parameter :: arctwopi = 0.159154943091895d0
+    complex*16,parameter :: iunit = dcmplx(0d0, 1d0)
+    complex*16 :: result
+    real(8) :: sx(2)
+    complex*16 :: beshy1, beshy2
+    real(8) :: doty1
+    real(8) :: doty2
+    real(8) :: dotn
+    real(8) :: rr1(2)
+    real(8) :: rr2(2)
+    real(8) :: r1 !rr1の長さ
+    real(8) :: r2 !rr2の長さ
+    real(8) :: dnrm2 !blas
+    real(8) :: zr, zi
+    real(8) :: cyr, cyi
+    real(8) :: fnu
+    integer :: kode
+    integer :: mmm, nnn
+    integer :: ierr, nz
+
+    real(8) :: s, r
+    real(8) :: laplace
+    real(8) :: RR(2)
+    complex*16 :: besh
+    real(8) :: p0(bunten), w(bunten)
+    integer :: i, j
+
+    result = dcmplx(0d0, 0d0)
+
+    ! near
+    if(abs(xm(1)-ym(1))+abs(xm(2)-ym(2)) .lt. 10d-8) then
+       select case(slp_or_dlp)
+       case(1, 4)
+          result = hy*(1d0-log(hy*0.5d0))*arctwopi
+       case(2, 3)
+          if(exterior == 0) then
+             if(slp_or_dlp .eq. 2) then
+                result = dcmplx(0.5d0, 0d0)
+             else !if(slp_or_dlp .eq. 3)
+                result = dcmplx(-0.5d0, 0d0)
+             end if
+          elseif(exterior == 1) then
+             if(slp_or_dlp .eq. 2) then
+                result = dcmplx(-0.5d0, 0d0)
+             else !if(slp_or_dlp .eq. 3)
+                result = dcmplx(0.5d0, 0d0)
+             end if
+          end if
+          return
+       end select
+    else
+       select case(slp_or_dlp)
+       case(1, 4)
+          result = slp_laplace(xm,y1,y2,hy,ny)
+       case(2, 3)
+          ! result = dcmplx(0d0, 0d0)
+       end select
+    end if
+
+    ! far
+    call givedata_p0_and_w(p0, w, bunten)
+
+    do i=1,bunten
+       s = 0.5d0 + 0.5d0*p0(i)
+       RR = y1 + (y2 - y1) * s
+       RR = xm - RR
+       r = dnrm2(2, RR(1), 1)
+
+       zr = dble(k*r)
+       zi = dimag(k*r)
+       kode = 1
+       if(msw_flag .eq. 0) then
+          mmm = 1
+       elseif(msw_flag .eq. 1) then
+          mmm = 2
+       end if
+
+       select case(slp_or_dlp)
+       case(1, 4)
+          fnu = 0d0
+       case(2, 3)
+          fnu = 1d0
+       end select
+
+!       if(zi .eq. 0d0) then
+!          call my_zbesh(zr,zi,fnu,kode,mmm,1,cyr,cyi,NZ,ierr)
+!       else if(zi .ne. 0d0) then
+          call zbesh(zr,zi,fnu,kode,mmm,1,cyr,cyi,NZ,ierr)
+          if(ierr.ne.0) then
+             !$omp critical
+             write(*,*) 'nz, ierr', nz, ierr
+             write(*,*) 'zr, zi', zr, zi
+             write(*,*) 'cyr', cyr
+             write(*,*) 'cyi', cyi
+             stop 'zbesh error, in predirect_helmholtz'
+             !$omp end critical
+          end if
+!       end if
+
+       besh = dcmplx(cyr, cyi)
+       if(msw_flag .eq. 0) then
+          besh = (iunit*0.25d0)*besh
+       elseif(msw_flag .eq. 1) then
+          besh = -(iunit*0.25d0)*besh
+       end if
+
+       select case(slp_or_dlp)
+       case(1, 4)
+          laplace = -log(r)*arctwopi
+          result = result + w(i)*(besh-laplace)*hy*0.5d0
+       case(2)
+          laplace = 0d0
+          result = result + w(i)*(k*besh*(dot_product(RR, ny)/r)-laplace)*hy*0.5d0
+       case(3)
+          laplace = 0d0
+          result = result - w(i)*(k*besh*(dot_product(RR, nx)/r)-laplace)*hy*0.5d0
+       end select
+    end do
+
+    !d_dlp
+    select case(slp_or_dlp)
+    case(1, 2, 3)
+       return
+    case(4)
+       dotn = dot_product(nx, ny)
+       result = dotn*k**2*result
+
+       rr1 = xm - y1
+       rr2 = xm - y2
+       r1 = dnrm2(2, rr1(1), 1)
+       r2 = dnrm2(2, rr2(1), 1)
+       sx(1) = -nx(2)
+       sx(2) = nx(1)
+       doty1 = dot_product(rr1, sx)
+       doty2 = dot_product(rr2, sx)
+
+       if(msw_flag .eq. 0) then
+          mmm = 1
+       elseif(msw_flag .eq. 1) then
+          mmm = 2
+       end if
+
+       zr = dble(k*r1)
+       zi = dimag(k*r1)
+!       if(zi .eq. 0d0) then
+!          call my_zbesh(zr, zi, 1d0, 1, mmm, 1, cyr, cyi, nz, ierr)
+!       elseif(zi .ne. 0d0) then
+          call zbesh(zr, zi, 1d0, 1, mmm, 1, cyr, cyi, nz, ierr)
+!       end if
+       if(ierr .ne. 0) stop 'zbesh error, in subroutine d_dlp_helmloltz of predirect_helmholtz'
+       beshy1 = dcmplx(cyr, cyi)
+
+       zr = dble(k*r2)
+       zi = dimag(k*r2)
+!       if(zi .eq. 0d0) then
+!          call my_zbesh(zr, zi, 1d0, 1, mmm, 1, cyr, cyi, nz, ierr)
+!       elseif(zi .ne. 0d0) then
+          call zbesh(zr, zi, 1d0, 1, mmm, 1, cyr, cyi, nz, ierr)
+!       end if
+       if(ierr .ne. 0) stop 'zbesh error, in subroutine d_dlp_helmloltz of predirect_helmholtz'
+       beshy2 = dcmplx(cyr, cyi)
+
+       if(msw_flag .eq. 0) then
+          result = result - 0.25d0*iunit*k*(beshy1*doty1/r1 - beshy2*doty2/r2)
+       elseif(msw_flag .eq. 1) then
+          result = result + 0.25d0*iunit*k*(beshy1*doty1/r1 - beshy2*doty2/r2)
+       end if
+    end select
+
+  end function lp_hel
+!--------------------------------------------
+  subroutine rank_check_svd(a)
+!    use mod_globals
+    implicit none
+
+    complex*16, intent(in) :: a(:,:)
+
+    !    .. Scalar Arguments ..
+    !    CHARACTER          JOBU, JOBVT
+    INTEGER :: INFO, LDA, LDU, LDVT, LWORK, M, N
+    !     .. Array Arguments ..
+    DOUBLE PRECISION,allocatable :: RWORK(:), S(:)
+    COMPLEX*16,allocatable :: dummy(:,:), U(:,:), VT(:,:),  WORK(:)
+
+    integer :: i
+
+    m = size(a(:,1))
+    n = size(a(1,:))
+
+    lda = m
+    ldu = 1
+    ldvt = 1
+    lwork = max(1, 2*min(m, n) + max(m, n)) + 1
+
+    allocate(dummy(m, n))
+    allocate(s(min(m, n)))
+    allocate(u(1,1))
+    allocate(vt(1,1))
+    allocate(work(lwork))
+    allocate(rwork(5*min(m, n)))
+
+    dummy = a
+
+    call ZGESVD('N', 'N', M, N, dummy, LDA, S, U, LDU, VT, LDVT, WORK, LWORK, RWORK, INFO)
+
+    do i = 1, min(m, n)
+       write(*,*) 'singular value, i', s(i), i
+    end do
+    write(*,*) 'condition number', s(1)/s(min(m, n))
+
+  end subroutine rank_check_svd
+  !--------------------------------------------------------------------
 end module lp_lap

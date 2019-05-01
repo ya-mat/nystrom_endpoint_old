@@ -18,9 +18,8 @@ program main
   real(8),parameter :: arctwopi = 0.159154943091895d0
   complex*16,parameter :: iunit = dcmplx(0d0, 1d0)
 
-  real(8) :: xm(2)
   real(8) :: th
-  real(8) :: nth
+  real(8) :: th0
   real(8) :: hy
   integer :: i
   integer :: j
@@ -29,25 +28,24 @@ program main
   integer :: j0
   integer :: j1
 
+  real(8) :: xm(2)
+  real(8) :: ym(2)
   real(8) :: y1(2)
   real(8) :: y2(2)
   complex*16 :: result
-  real(8) :: sx(2)
-  complex*16 :: beshy1, beshy2
-  real(8) :: doty1
-  real(8) :: doty2
-  real(8) :: dotn
-  real(8) :: rr1(2)
-  real(8) :: rr2(2)
-  real(8) :: r1 !rr1の長さ
-  real(8) :: r2 !rr2の長さ
+  complex*16 :: result2
+  complex*16 :: result3
+  real(8) :: nxd(2)
+  real(8) :: nyd(2)
   real(8) :: dnrm2 !blas
   integer :: ierr, nz
 
   real(8) :: s, r
   real(8) :: RR(2)
   complex*16 :: besh(2)
-  integer,parameter :: bunten = 4
+  complex*16 :: dbesh(3)
+  complex*16 :: besj(2)
+  integer,parameter :: bunten = 100
   real(8) :: p0(bunten), w(bunten)
 
   integer :: nr
@@ -55,18 +53,27 @@ program main
   integer,parameter :: b_num = 2 ! 2 or 4
   real(8) :: beta(b_num)
   integer,parameter :: col_num = 20 ! 4 or 12 or 20
+  integer,parameter :: col_num_d = 20 ! 4 or 12 or 20
   real(8) :: wg(col_num)
   real(8),allocatable :: wn(:)
   real(8),allocatable :: w1(:)
   real(8),allocatable :: ws(:)
+  complex*16,allocatable :: wnd(:)
+  complex*16,allocatable :: einth(:,:)
   integer :: tmpi
 
   real(8) :: tmp
   real(8) :: tmp2
-  real(8) :: k_1
+  complex*16 :: k_1
   real(8) :: phi
   real(8) :: cyr(2)
   real(8) :: cyi(2)
+  real(8) :: ncyr(2)
+  real(8) :: ncyi(2)
+  real(8) :: cwrkr(2)
+  real(8) :: cwrki(2)
+  real(8) :: dcyr(3)
+  real(8) :: dcyi(3)
   real(8) :: ec
   real(8),allocatable :: en(:)
   integer :: e_ite2
@@ -364,7 +371,7 @@ program main
   rad1 = 2d0
   rad2 = 3d0
   n = 200
-  k_1 = 3d0
+  k_1 = dcmplx(3d0, 0d0)
   phi = 1d0
   boundary_flag = 0 !0==circle, 1==daen, 2==smooth_star
 
@@ -471,8 +478,8 @@ program main
      wn(-10) = wn(10)
   end if
 
-  tmp = k_1*sin(phi)
-  tmp2 = k_1*cos(phi)
+  tmp = dble(k_1*sin(phi))
+  tmp2 = dble(k_1*cos(phi))
 
   do i = 1, n
      u(i) = exp(iunit*(tmp*x(1, i)+tmp2*x(2, i)))
@@ -507,7 +514,7 @@ program main
 !           lp2(i, j) = -0.5d0
         else
            !  call zbesh(zr,zi,fnu,kode,m,n,cyr,cyi,NZ,ierr)
-           call zbesh(k_1*r, 0d0, 0d0, 1, 1, 2, CYR, CYI, NZ, IERR)
+           call zbesh(dble(k_1*r), 0d0, 0d0, 1, 1, 2, CYR, CYI, NZ, IERR)
            if(ierr.ne.0) then
               write(*,*) 'nz, ierr', nz, ierr
               write(*,*) 'cyr', cyr
@@ -562,8 +569,9 @@ program main
 
   rad = 2d0
   n = 200
-  k_1 = 3d0
+  k_1 = dcmplx(3d0, 0d0)
   phi = 1d0
+  slp_or_dlp = 4
 
   allocate(x(2, n))
   allocate(xn(2, n))
@@ -575,6 +583,54 @@ program main
   allocate(w1(n))
   allocate(ws(n))
   allocate(wn(-col_num/2:col_num/2))
+  allocate(wnd(-col_num_d/2:col_num_d/2))
+  allocate(einth(-col_num_d/2:col_num_d/2, -col_num_d/2:col_num_d/2))
+
+!  !-OK------------
+!  xm = (/0d0, 0d0/)
+!  y1 = (/0.05d0, 2d0/)
+!  y2 = (/-0.05d0, 2d0/)
+!  ym = (/0.0d0, 2d0/)
+!  hy = 0.1d0
+!  nxd = (/0d0, -1d0/)
+!  nyd = (/0d0, 1d0/)
+! 
+!  call givedata_p0_and_w(p0, w, bunten)
+!  result = dcmplx(0d0, 0d0)
+!  result2 = dcmplx(0d0, 0d0)
+!  result3 = dcmplx(0d0, 0d0)
+!  do i=1,bunten
+!     s = 0.5d0 + 0.5d0*p0(i)
+!     RR = y1 + (y2 - y1)*s
+! 
+!     result = result + w(i)*d_diff_kernel_hel(xm, rr, nxd, nyd, k_1)
+! 
+!     rr = xm - rr
+!     r = dnrm2(2, rr, 1)
+!     call zbesh(dble(k_1*r), dimag(k_1*r), 0d0, 1, 1, 1, CYR(1), CYI(1), NZ, IERR)
+!     if(ierr.ne.0) then
+!        write(*,*) 'nz, ierr', nz, ierr
+!        write(*,*) 'cyr', cyr
+!        write(*,*) 'cyi', cyi
+!        stop 'zbesh error, in predirect_helmholtz'
+!     end if
+!     besh(1) = (iunit*0.25d0)*dcmplx(cyr(1), cyi(1))
+!     result2 = result2 + w(i)*besh(1)
+!     result3 = result3 + w(i)*(besh(1) + log(r)*arctwopi)
+!  end do
+!  result = result*hy*0.5d0
+!  result2 = result2*hy*0.5d0
+!  result3 = result3*hy*0.5d0
+! 
+!  write(*,*) 'bunten', bunten
+!  write(*,*) 'lp_hel d_diff', lp_hel(xm, ym, y1, y2, hy, nxd, nyd, k_1, slp_or_dlp, 0, 0)
+!  write(*,*) 'gauss d_diff hel', result
+!  write(*,*) 'lp_hel slp', lp_hel(xm, ym, y1, y2, hy, nxd, nyd, k_1, 1, 0, 0)
+!  write(*,*) 'gauss slp hel', result2
+!  write(*,*) 'gauss slp hel', result3 + slp_laplace(xm,y1,y2,hy,nyd)
+!!  stop 'lp_hel test'
+!! gauss slp hel (  1.8235568104828213E-002,  3.7704524814805148E-003)
+!  !-------------
 
   ! circle
   do i = 1, n
@@ -631,15 +687,82 @@ program main
      wn(-10) = wn(10)
   end if
 
+  !kaizou tyu start---------------
+  if(slp_or_dlp .eq. 4) then
+     th0 = 2d0*pi*(0.5d0)/dble(n)
+     einth = dcmplx(0d0, 0d0)
+     do j = -col_num_d/2, col_num_d/2
+        !einth
+        th = 2d0*pi*(dble(j)+0.5d0)/dble(n)
+        do i = -col_num_d/2, col_num_d/2
+           einth(i, j) = exp(iunit*dble(i)*th)
+!           write(*,*) 'i, j, einth !dbg', i, j, einth(i, j) !dbg
+        end do
+
+        !rhs
+        if(j .ge. 0d0) then
+           call ZBESJ(dble(k_1*rad), 0d0, dble(j), 1, 2, CYR, CYI, NZ, IERR)
+           besj = dcmplx(cyr, cyi)
+        elseif(j .lt. 0d0) then
+           call ZBESJ(dble(k_1*rad), 0d0, -dble(j), 1, 2, CYR, CYI, NZ, IERR)
+           call ZBESY(dble(k_1*rad), 0d0, -dble(j), 1, 2, nCYR, nCYI, NZ, CWRKR, CWRKI, IERR)
+           besj(1) = dcmplx(cyr(1), cyi(1))*cos(pi*dble(j)) - dcmplx(ncyr(1), ncyi(1))**sin(pi*dble(j))
+           besj(2) = dcmplx(cyr(2), cyi(2))*cos(pi*dble(j+1)) - dcmplx(ncyr(2), ncyi(2))**sin(pi*dble(j+1))
+        end if
+        if(ierr.ne.0) then
+           write(*,*) 'nz, ierr', nz, ierr
+           write(*,*) 'k_1', k_1
+           write(*,*) 'rad', rad
+           write(*,*) 'j', j
+           write(*,*) 'cyr', cyr
+           write(*,*) 'cyi', cyi
+           stop 'zbesj error'
+        end if
+
+        if(j .ge. 0d0) then
+           call ZBESH(dble(k_1*rad), 0d0, dble(j), 1, 1, 2, CYR, CYI, NZ, IERR)
+           besh = dcmplx(cyr, cyi)
+        elseif(j .lt. 0d0) then
+           call ZBESH(dble(k_1*rad), 0d0, -dble(j), 1, 1, 2, CYR, CYI, NZ, IERR)
+           besh(1) = dcmplx(cyr(1), cyi(1))*exp(iunit*pi*dble(j))
+           besh(2) = dcmplx(cyr(2), cyi(2))*exp(iunit*pi*dble(j+1))
+        end if
+        if(ierr.ne.0) then
+           write(*,*) 'nz, ierr', nz, ierr
+           write(*,*) 'cyr', cyr
+           write(*,*) 'cyi', cyi
+           stop 'zbesh error'
+        end if
+
+        wnd(j) = iunit*k_1*k_1*rad*pi*0.5d0*((dble(j)/rad)*(besj(1) + besh(1)) - (besj(2) + besh(2)))
+
+        do i = 1+col_num_d/2+1, n-col_num_d/2
+           th = 2d0*pi*(dble(i)+0.5d0)/dble(n)
+           wnd(j) = wnd(j) - w1(i)*ws(i)*d_diff_kernel_hel(x(:,1), x(:,i), xn(:,1), xn(:,i), k_1)*exp(iunit*dble(j)*th)
+        end do
+     end do
+
+     !-dbg----
+     call rank_check_svd(einth) !dbg
+     !-dbg----
+     write(*,*) 'wnd before !dbg', wnd !dbg
+     call ZGESV(col_num_d+1, 1, einth(-col_num_d/2:col_num_d/2, -col_num_d/2:col_num_d/2), col_num_d+1, ipiv(1:col_num_d+1), wnd(-col_num_d/2:col_num_d/2), col_num_d+1, info)
+     if(info.ne.0) then
+        write(6,*) 'dgesv, info=', info
+        call force_raise()
+     endif
+     write(*,*) 'wnd after !dbg', wnd !dbg
+  end if
+  !kaizou tyu finished---------------
+
 !  tmp = k_1*sin(phi)
 !  tmp2 = k_1*cos(phi)
 
 !  fnu = 1d0
 !  kode = 1
 !  call ZBESJ(k_1*rad, 0d0, FNU, KODE, 1, CYR(1), CYI(1), NZ, IERR)
-  call ZBESJ(k_1*rad, 0d0, 1d0, 1, 1, CYR(1), CYI(1), NZ, IERR)
+  call ZBESJ(dble(k_1*rad), 0d0, 1d0, 1, 1, CYR(1), CYI(1), NZ, IERR)
 
-  slp_or_dlp = 2
   do i = 1, n
 !     u(i) = exp(iunit*(tmp*x(1, i)+tmp2*x(2, i)))
      u(i) = -dcmplx(cyr(1), cyi(1))*exp(iunit*1d0*atan2(x(2, i), x(1, i)))
@@ -651,7 +774,6 @@ program main
 
   do j = 1, n
      do i = 1, n
-        r= sqrt(dot_product(x(:,i)-x(:,j),x(:,i)-x(:,j)))
         if(abs(j-i) .gt. n/2) then
            if(j > i) then
               tmpi = i + n
@@ -662,31 +784,46 @@ program main
            tmpi = i
         end if
 
-        if(r.le.1d-10) then
-!           lp1(i, j) = 0.5d0 ! d_slp
-           lp2(i, j) = -0.5d0 ! dlp
-        else
-           !  call zbesh(zr,zi,fnu,kode,m,n,cyr,cyi,NZ,ierr)
-           call zbesh(k_1*r, 0d0, 0d0, 1, 1, 2, CYR, CYI, NZ, IERR)
-           if(ierr.ne.0) then
-              write(*,*) 'nz, ierr', nz, ierr
-              write(*,*) 'cyr', cyr
-              write(*,*) 'cyi', cyi
-              stop 'zbesh error, in predirect_helmholtz'
-           end if
-
-           besh = dcmplx(cyr, cyi)
-           besh = (iunit*0.25d0)*besh
-
-           if(abs(j - tmpi) .le. col_num/2) then
-!              lp1(i, j) = wn(j-tmpi)*ws(j)*besh(1)
-!              lp2(i, j) = wn(j-tmpi)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r) ! exact version
-              lp2(i, j) = w1(j)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
+        select case(slp_or_dlp)
+        case(1, 2)
+           r= sqrt(dot_product(x(:,i)-x(:,j),x(:,i)-x(:,j)))
+           if(r.le.1d-10) then
+              !              lp1(i, j) = 0.5d0 ! slp
+              lp2(i, j) = -0.5d0 ! dlp
            else
-!              lp1(i, j) = w1(j)*ws(j)*besh(1)
-              lp2(i, j) = w1(j)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
+              !  call zbesh(zr,zi,fnu,kode,m,n,cyr,cyi,NZ,ierr)
+              call zbesh(dble(k_1*r), 0d0, 0d0, 1, 1, 2, CYR, CYI, NZ, IERR)
+              if(ierr.ne.0) then
+                 write(*,*) 'nz, ierr', nz, ierr
+                 write(*,*) 'cyr', cyr
+                 write(*,*) 'cyi', cyi
+                 stop 'zbesh error, in predirect_helmholtz'
+              end if
+
+              besh = dcmplx(cyr, cyi)
+              besh = (iunit*0.25d0)*besh
+
+              if(abs(j - tmpi) .le. col_num/2) then
+                 !              lp1(i, j) = wn(j-tmpi)*ws(j)*besh(1)
+                 lp2(i, j) = wn(j-tmpi)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r) ! exact version
+                 !lp2(i, j) = w1(j)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
+              else
+                 !              lp1(i, j) = w1(j)*ws(j)*besh(1)
+                 lp2(i, j) = w1(j)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r)
+              end if
+           endif
+        case(4)
+           !  call zbesh(zr,zi,fnu,kode,m,n,cyr,cyi,NZ,ierr)
+
+           if(abs(j - tmpi) .le. col_num_d/2) then
+              !              lp1(i, j) = wn(j-tmpi)*ws(j)*besh(1)
+              !              lp2(i, j) = wn(j-tmpi)*ws(j)*k_1*besh(2)*(dot_product(x(:,i)-x(:,j),xn(:,j))/r) ! exact version
+              lp2(i, j) = wnd(j-tmpi)
+           else
+              !              lp1(i, j) = w1(j)*ws(j)*besh(1)
+              lp2(i, j) = w1(j)*ws(j)*d_diff_kernel_hel(x(:,i), x(:,j), xn(:,i), xn(:,j), k_1)
            end if
-        endif
+        end select
      end do
   end do
 
@@ -698,9 +835,9 @@ program main
      call force_raise()
   endif
 
-  write(*,*) 'Helmholtz number of dof', n
-  write(*,*) 'Helmholtz rad', rad
-  write(*,*) 'Helmholtz relative error', sqrt(dot_product(u - kai, u - kai)/dot_product(kai, kai))
+  write(*,*) 'd Helmholtz number of dof', n
+  write(*,*) 'd Helmholtz rad', rad
+  write(*,*) 'd Helmholtz relative error', sqrt(dot_product(u - kai, u - kai)/dot_product(kai, kai))
 
   deallocate(lp1)
   deallocate(lp2)
