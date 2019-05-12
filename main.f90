@@ -23,6 +23,7 @@ program main
   real(8) :: hy
   integer :: i
   integer :: j
+  real(8) :: jpidth
   integer :: i0
   integer :: i1
   integer :: j0
@@ -692,22 +693,33 @@ program main
      th0 = 2d0*pi*(0.5d0)/dble(n)
      einth = dcmplx(0d0, 0d0)
      do j = -col_num_d/2, col_num_d/2
+        jpidth = dble(int(j*pi*th0*col_num_d/2))
         !einth
         th = 2d0*pi*(dble(j)+0.5d0)/dble(n)
         do i = -col_num_d/2, col_num_d/2
-           einth(i, j) = exp(iunit*dble(i)*th)
+!           einth(i, j) = exp(iunit*dble(i)*th)
+           einth(i, j) = exp(iunit*dble(int(i*pi*th0*col_num_d/2))*th)
 !           write(*,*) 'i, j, einth !dbg', i, j, einth(i, j) !dbg
         end do
 
         !rhs
-        if(j .ge. 0d0) then
-           call ZBESJ(dble(k_1*rad), 0d0, dble(j), 1, 2, CYR, CYI, NZ, IERR)
+!        if(j .ge. 0) then
+!           call ZBESJ(dble(k_1*rad), 0d0, dble(j), 1, 2, CYR, CYI, NZ, IERR)
+!           besj = dcmplx(cyr, cyi)
+!        elseif(j .lt. 0) then
+!           call ZBESJ(dble(k_1*rad), 0d0, -dble(j), 1, 2, CYR, CYI, NZ, IERR)
+!           call ZBESY(dble(k_1*rad), 0d0, -dble(j), 1, 2, nCYR, nCYI, NZ, CWRKR, CWRKI, IERR)
+!           besj(1) = dcmplx(cyr(1), cyi(1))*cos(pi*dble(j)) - dcmplx(ncyr(1), ncyi(1))**sin(pi*dble(j))
+!           besj(2) = dcmplx(cyr(2), cyi(2))*cos(pi*dble(j+1)) - dcmplx(ncyr(2), ncyi(2))**sin(pi*dble(j+1))
+!        end if
+        if(jpidth .ge. 0d0) then
+           call ZBESJ(dble(k_1*rad), 0d0, jpidth, 1, 2, CYR, CYI, NZ, IERR)
            besj = dcmplx(cyr, cyi)
-        elseif(j .lt. 0d0) then
-           call ZBESJ(dble(k_1*rad), 0d0, -dble(j), 1, 2, CYR, CYI, NZ, IERR)
-           call ZBESY(dble(k_1*rad), 0d0, -dble(j), 1, 2, nCYR, nCYI, NZ, CWRKR, CWRKI, IERR)
-           besj(1) = dcmplx(cyr(1), cyi(1))*cos(pi*dble(j)) - dcmplx(ncyr(1), ncyi(1))**sin(pi*dble(j))
-           besj(2) = dcmplx(cyr(2), cyi(2))*cos(pi*dble(j+1)) - dcmplx(ncyr(2), ncyi(2))**sin(pi*dble(j+1))
+        elseif(jpidth .lt. 0d0) then
+           call ZBESJ(dble(k_1*rad), 0d0, -jpidth, 1, 2, CYR, CYI, NZ, IERR)
+           call ZBESY(dble(k_1*rad), 0d0, -jpidth, 1, 2, nCYR, nCYI, NZ, CWRKR, CWRKI, IERR)
+           besj(1) = dcmplx(cyr(1), cyi(1))*cos(pi*jpidth) - dcmplx(ncyr(1), ncyi(1))**sin(pi*jpidth)
+           besj(2) = dcmplx(cyr(2), cyi(2))*cos(pi*(jpidth+1)) - dcmplx(ncyr(2), ncyi(2))**sin(pi*(jpidth+1))
         end if
         if(ierr.ne.0) then
            write(*,*) 'nz, ierr', nz, ierr
@@ -719,13 +731,21 @@ program main
            stop 'zbesj error'
         end if
 
-        if(j .ge. 0d0) then
-           call ZBESH(dble(k_1*rad), 0d0, dble(j), 1, 1, 2, CYR, CYI, NZ, IERR)
+!        if(j .ge. 0) then
+!           call ZBESH(dble(k_1*rad), 0d0, dble(j), 1, 1, 2, CYR, CYI, NZ, IERR)
+!           besh = dcmplx(cyr, cyi)
+!        elseif(j .lt. 0) then
+!           call ZBESH(dble(k_1*rad), 0d0, -dble(j), 1, 1, 2, CYR, CYI, NZ, IERR)
+!           besh(1) = dcmplx(cyr(1), cyi(1))*exp(iunit*pi*dble(j))
+!           besh(2) = dcmplx(cyr(2), cyi(2))*exp(iunit*pi*dble(j+1))
+!        end if
+        if(j .ge. 0) then
+           call ZBESH(dble(k_1*rad), 0d0, jpidth, 1, 1, 2, CYR, CYI, NZ, IERR)
            besh = dcmplx(cyr, cyi)
-        elseif(j .lt. 0d0) then
-           call ZBESH(dble(k_1*rad), 0d0, -dble(j), 1, 1, 2, CYR, CYI, NZ, IERR)
-           besh(1) = dcmplx(cyr(1), cyi(1))*exp(iunit*pi*dble(j))
-           besh(2) = dcmplx(cyr(2), cyi(2))*exp(iunit*pi*dble(j+1))
+        elseif(j .lt. 0) then
+           call ZBESH(dble(k_1*rad), 0d0, -jpidth, 1, 1, 2, CYR, CYI, NZ, IERR)
+           besh(1) = dcmplx(cyr(1), cyi(1))*exp(iunit*pi*jpidth)
+           besh(2) = dcmplx(cyr(2), cyi(2))*exp(iunit*pi*(jpidth+1))
         end if
         if(ierr.ne.0) then
            write(*,*) 'nz, ierr', nz, ierr
@@ -734,11 +754,13 @@ program main
            stop 'zbesh error'
         end if
 
-        wnd(j) = iunit*k_1*k_1*rad*pi*0.5d0*((dble(j)/rad)*(besj(1) + besh(1)) - (besj(2) + besh(2)))
+!        wnd(j) = iunit*k_1*k_1*rad*pi*0.5d0*((dble(j)/rad)*(besj(1) + besh(1)) - (besj(2) + besh(2)))
+        wnd(j) = iunit*k_1*k_1*rad*pi*0.5d0*((jpidth/rad)*(besj(1) + besh(1)) - (besj(2) + besh(2)))
 
         do i = 1+col_num_d/2+1, n-col_num_d/2
            th = 2d0*pi*(dble(i)+0.5d0)/dble(n)
-           wnd(j) = wnd(j) - w1(i)*ws(i)*d_diff_kernel_hel(x(:,1), x(:,i), xn(:,1), xn(:,i), k_1)*exp(iunit*dble(j)*th)
+!           wnd(j) = wnd(j) - w1(i)*ws(i)*d_diff_kernel_hel(x(:,1), x(:,i), xn(:,1), xn(:,i), k_1)*exp(iunit*dble(j)*th)
+           wnd(j) = wnd(j) - w1(i)*ws(i)*d_diff_kernel_hel(x(:,1), x(:,i), xn(:,1), xn(:,i), k_1)*exp(iunit*jpidth*th)
         end do
      end do
 
